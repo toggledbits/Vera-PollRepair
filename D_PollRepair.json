@@ -43,7 +43,7 @@
 					"top": "1",
 					"left": "0",
 					"Display": {
-						"Top": 90,
+						"Top": 0,
 						"Left": 0,
 						"Width": 320,
 						"Height": 24,
@@ -51,40 +51,57 @@
 						"Variable": "Message"
 					},
 					"ControlCode": "message"
-				},
-				{
-					"ControlType": "button",
-					"top": "0",
-					"left": "0",
-					"Label": {
-						"lang_tag": "cmd_create",
-						"text": "Add Timer"
-					},
-					"Display": {
-						"Top": 0,
-						"Left": 0,
-						"Width": 120,
-						"Height": 24
-					},
-					"Command": {
-						"Service": "urn:toggledbits-com:serviceId:PollRepair",
-						"Action": "AddTimer",
-						"Parameters": []
-					},
-					"ControlCode": "addtimer"
-				},
-				{
-					"ControlType": "label",
+				},{
+					"ControlType": "multi_state_button",
+					"top": 0,
+					"left": 3,
 					"Display": {
 						"Top": 30,
 						"Left": 0,
-						"Width": 320,
+						"Width": 70,
 						"Height": 24
 					},
-					"Label": {
-						"lang_tag": "tb_pollrepair_how",
-						"text": "To create a timer, click the <b>Add Timer</b> button. Luup will reload; a browser cache flush/page reload is highly recommended."
-					}
+					"states": [{
+							"Label": {
+								"lang_tag": "tb_enabled",
+								"text": "Enabled"
+							},
+							"Display": {
+								"Service": "urn:toggledbits-com:serviceId:PollRepair",
+								"Variable": "Enabled",
+								"Value": "1"
+							},
+							"Command": {
+								"Service": "urn:toggledbits-com:serviceId:PollRepair",
+								"Action": "SetEnabled",
+								"Parameters": [{
+									"Name": "NewEnabledState",
+									"Value": "1"
+								}]
+							},
+							"ControlCode": "tbcmd_enable"
+						},
+						{
+							"Label": {
+								"lang_tag": "tb_disabled",
+								"text": "Disabled"
+							},
+							"Display": {
+								"Service": "urn:toggledbits-com:serviceId:PollRepair",
+								"Variable": "Enabled",
+								"Value": "0"
+							},
+							"Command": {
+								"Service": "urn:toggledbits-com:serviceId:PollRepair",
+								"Action": "SetEnabled",
+								"Parameters": [{
+									"Name": "NewEnabledState",
+									"Value": "0"
+								}]
+							},
+							"ControlCode": "tbcmd_disable"
+						}
+					]
 				},
 				{
 					"ControlType": "label",
@@ -96,7 +113,7 @@
 					},
 					"Label": {
 						"lang_tag": "tb_pollrepair_about",
-						"text": "PollRepair ver 0.1 &#169; 2020 Patrick H. Rigney, All Rights Reserved.<br/><a href=\"http://forum.micasaverde.com/index.php/topic,60498.0.html\" target=\"_blank\">Forum thread</a> &#149; <a href=\"http://www.toggledbits.com/pollrepair\" target=\"_blank\">Documentation and license information</a>."
+						"text": "PollRepair ver 0.1-20241 &#169; 2020 Patrick H. Rigney, All Rights Reserved.<br/><a href=\"https://github.com/toggledbits/Vera-PollRepair\" target=\"_blank\">Github Repository</a> &#149; <a href=\"https://community.getvera.com/c/plugins-and-plugin-development/general-plugin-discussion/\" target=\"_blank\">Community Forums Topic</a>."
 					}
 				}
 			],
