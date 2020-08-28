@@ -1,0 +1,56 @@
+<?xml version="1.0"?>
+<!-- S_DelayLight.xml -->
+<scpd xmlns="urn:schemas-upnp-org:service-1-0">
+	<specVersion>
+		<major>1</major>
+		<minor>0</minor>
+	</specVersion>
+	<serviceStateTable>
+		<stateVariable sendEvents="yes">
+			<name>Message</name>
+			<dataType>string</dataType>
+			<defaultValue></defaultValue>
+			<shortCode>message</shortCode>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>A_ARG_TYPE_boolean</name>
+			<dataType>boolean</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>A_ARG_TYPE_device</name>
+			<dataType>ui4</dataType>
+		</stateVariable>
+	</serviceStateTable>
+	<actionList>
+		<action>
+			<name>PollDevice</name>
+			<argumentList>
+				<argument>
+					<name>DeviceNum</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_device</relatedStateVariable>
+				</argument>
+			</argumentList>
+		</action>
+		<action>
+			<name>SetEnabled</name>
+			<argumentList>
+				<argument>
+					<name>NewEnabledState</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_boolean</relatedStateVariable>
+				</argument>
+			</argumentList>
+		</action>
+		<action>
+			<name>SetDebug</name>
+			<argumentList>
+				<argument>
+					<name>debug</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_boolean</relatedStateVariable>
+				</argument>
+			</argumentList>
+		</action>
+	</actionList>
+</scpd>

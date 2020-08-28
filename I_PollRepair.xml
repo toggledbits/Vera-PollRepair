@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- I_PollRepair.xml -->
+<implementation>
+	<functions>
+		-- -------------------------------------------------------------------------------------------------------------------------
+		-- PollRepair
+		-- Copyright 2016,2017,2018 Patrick H. Rigney, All Rights Reserved.
+		-- This file is part of PollRepair. For license info, see LICENSE at https://github.com/toggledbits/PollRepair
+		-- -------------------------------------------------------------------------------------------------------------------------
+		function startupPollRepair(devNum)
+			luup.log("PollRepair STARTUP!")
+			PollRepair = require("L_PollRepair")
+			pollRepairTick = PollRepair.timer_callback
+			pollRepairJob = PollRepair.job_callback
+			pollRepairWatch = PollRepair.watch_callback
+			pollRepairRequestHandler = PollRepair.request
+			luup.register_handler("pollRepairRequestHandler", "PollRepair")
+			return PollRepair.startPlugin(devNum)
+		end
+	</functions>
+	<startup>startupPollRepair</startup>
+	<actionList>
+		<action>
+			<serviceId>urn:toggledbits-com:serviceId:PollRepair</serviceId>
+			<name>PollDevice</name>
+			<job>
+				return PollRepair.actionPollDevice( lul_device, lul_settings, lul_job )
+			</job>
+		</action>
+		<action>
+			<serviceId>urn:toggledbits-com:serviceId:PollRepair</serviceId>
+			<name>SetEnabled</name>
+			<run>
+				return PollRepair.actionSetEnabled( lul_device, lul_settings )
+			</run>
+		</action>
+		<action>
+			<serviceId>urn:toggledbits-com:serviceId:PollRepair</serviceId>
+			<name>SetDebug</name>
+			<run>
+				return PollRepair.actionSetDebug( lul_device, lul_settings )
+			</run>
+		</action>
+	</actionList>
+</implementation>
