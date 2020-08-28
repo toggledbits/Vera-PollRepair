@@ -420,7 +420,6 @@ local function poll_device()
 	end
 
 	-- Take care of next scheduled item.
-	local delay = 60
 	table.sort( pollDevices, function(a,b)
 		local a_tardy = now - a.nextattempt
 		local b_tardy = now - b.nextattempt
@@ -433,15 +432,17 @@ local function poll_device()
 			break
 		end
 	end
-	setMessage(string.format("Managing %d devices; %d ready", #pollDevices, tardy))
 	if #pollDevices > 0 then
+		setMessage(string.format("Managing %d devices; %d ready", #pollDevices, tardy))
 		local p = pollDevices[1]
 		D("poll_device() now %2 candidate %1", p, now)
 		if p.nextattempt > ( now + 5 ) then
 			-- Scheduled time more than five seconds away, defer
-			delay = p.nextattempt - now
+			local delay = p.nextattempt - now
 			D("poll_device() device not ready for %1s, deferring", delay)
 			setMessage(string.format("Managing %d devices; next in %ds", #pollDevices, delay))
+			D("poller() scheduling run for %1s %2", delay, now+delay)
+			sysScheduler.getTask("poller"):delay(delay)
 		else
 			D("poll_device() device %1 (#%2) ready to poll", luup.devices[p.device].description, p.device)
 			p.interval = getVarNumeric( "tb_pollsettings", 1800, p.device, ZWDEVSID )
@@ -462,13 +463,12 @@ local function poll_device()
 			p.lastattempt = now
 			p.nextattempt = now + p.interval -- just for now
 			sysScheduler.Task:new( "jobcheck"..job, pluginDevice, check_job, { job, p.device } ):delay( 5 )
-			-- We'll reschedule through check_job
-			return
+			return -- check_job will reschedule the poller when the poll job completes
 		end
+	else
+		W("No eligible devices (poller)")
+		setMessage("No eligible devices.")
 	end
-
-	D("poller() scheduling run for %1s %2", delay, now+delay)
-	sysScheduler.getTask("poller"):delay(delay)
 end
 
 check_job = function( task, jobnum, dev, retries )
@@ -499,7 +499,6 @@ check_job = function( task, jobnum, dev, retries )
 					E("Not a pollable device #%1. Do something about it", dev)
 					p.notpollable = true
 				end
-				L("Poll failed for %1 (#%2), marking for retry...", luup.devices[p.device].description, p.device)
 				p.job = nil
 				p.failedattempts = (p.failedattempts or 0) + 1
 				p.nextattempt = p.lastattempt + 120 * math.min( 15, math.ceil(p.failedattempts / 2) )
@@ -788,6 +787,7 @@ function watch_callback( dev, sid, var, oldVal, newVal )
 					task:delay(0)
 				else
 					W("No eligible devices.")
+					setMessage("No eligible devices.")
 				end
 			else
 				-- Disable
