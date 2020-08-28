@@ -72,11 +72,11 @@ After device initialization, PollRepair begins polling your devices. A count of 
 
 Luup reloads will, of course, interrupt the polling process and cause delays. After a reload, you may notice that the number of "ready" devices jumps up. Just as before, it will settle down as PollRepair catches up after the reload.
 
-If you disable PollRepair using its dashboard button, the plugin will restore Vera's polling configuration to all devices and step out of the process. Vera will again be in charge of polling all devices on the schedule you configured for each. So if you suspect PollRepair is causing problems, it's easy to disable and restore your original configuration (without restoring a backup).
+If you disable PollRepair using its control panel switch/button, the plugin will restore Vera's polling configuration to all devices and step out of the process. Vera will again be in charge of polling all devices on the schedule you configured for each. So if you suspect PollRepair is causing problems, it's easy to disable and restore your original configuration (without restoring a backup).
 
 ## Special Configuration
 
-If you have a device that you do not want PollRepair to manage, you can mark it by creating a state variable called `tb_verapollonly` in service `urn:micasaverde-com:serviceId:ZWaveDevice1` and setting it to 1 (or non-zero integer). This is easily done in the device's control panel, on the *Advanced > New Service* tab.
+If you have a device that you do not want PollRepair to manage, you can mark it by creating a state variable called `tb_verapollonly` in service `urn:micasaverde-com:serviceId:ZWaveDevice1` and setting it to 1. This is easily done in the device's control panel, on the *Advanced > New Service* tab.
 Setting it to 0 will again allow PollRepair to manage the device. Whenever you create or change this value, if PollRepair is enabled, you should disable it and then re-enable it. Luup reload is not necessary.
 
 ## Other Things
