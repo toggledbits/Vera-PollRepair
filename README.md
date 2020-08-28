@@ -2,27 +2,32 @@
 
 *PollRepair* is a plugin replacement for Vera Luup's broken polling. 
 
-It does not run on openLuup. If you are an openLuup (or Hass or other) user bridging a Vera, PollRepair can and should be run on the Vera itself.
+It does not run on openLuup directly. But, if you are an openLuup (or Hass or other) user with a bridged Vera system, PollRepair can be run on the Vera itself.
 
 ## Why PollRepair?
 
-Vera's polling is verifiably broken. At a certain point, it collapses under its own weight, often taking the mesh with it. The first most-observable evidence of its flaws are that devices are not polled on time in large networks. Other observations include suspected bugs in concurrency or mesh interaction that cause deadlocks and Luup reloads when polling and other mesh activities are done at the same time.
+Vera's polling is verifiably broken. At a certain point, it collapses under its own weight and bugs, sometimes taking the mesh with it. The first most-observable evidence of its flaws are that devices are not polled on time in large networks. Other observations include suspected bugs in concurrency or mesh interaction that cause deadlocks and Luup reloads when polling and other mesh activities are done at the same time.
 
-While we cannot examine the code to determine exact reasons why these might be, there is evidence in the log files of a few things. First, they've made some bad implementation choices (everyone who has been on Vera for any length of time will not be shocked by this revelation). For example, at around 50 ZWave nodes, messages to the effect that the poll list is full and a device is being bumped off the list start rolling in. 
+While we cannot examine the code to determine exact reasons why these might be, there is evidence in the log files of a few things. 
+First, at around 50 ZWave nodes, messages declaring the poll list to be full start rolling in:
 
 ```
 02	08/27/20 15:47:27.239	Device_Basic::AddPoll 446 poll list full, deleting old one <0x77370520>
 ```
 
-"Full"? Hmmm. This suggests the list has a fixed upper limit, confirmed by the observation that the more nodes, the more frequent these messages. Users also begin to notice that the polling of certain devices is not happening in a timely way, and the result is that devices that need to polled have inaccurate status/data for unpredictable amounts of time. And again, the more nodes, the worse this becomes. A fixed-size list is a poor choice on its own (particularly since the system limit on the number of ZWave devices is very low in computing terms). Nonetheless, it's clear that when the list limit is reached, something is being thrown off the list.
+"Full"? "Deleting old one"? Hmmm. This suggests the list has a fixed upper limit and devices are thrown off arbitrarily when the limit is reached. This is confirmed by the observation that the more nodes, the more frequent these messages. Users also begin to notice that the polling of certain devices is not happening in a timely way, and the result is that devices that need to polled have inaccurate status/data for unpredictable amounts of time. And again, the more nodes, the worse this becomes.
 
-Second, there appears to be no priority in what gets thrown off the list other than how many are on the list--the first one put on is the first one thrown off. This is troublesome, because it makes no provision for how "tardy" the poll is, so a node that has missed a poll interval could, in a large enough network, keep getting thrown off the list and *never* get polled. Eventually it really becomes blind luck that the device doesn't get thrown off if it does eventually get polled.
+> SIDEBAR: It's hard to imagine a worse implementation choice than a fixed size list, except for choosing a size for that list that's too small to accomodate the system capacity. The maximum number of ZWave nodes in the system is only 232, which is pretty small even for the modest CPU and RAM on which Luup runs. There's really not even a reason to have a fixed list at all: a linked list of nodes would serve better from adding and removing devices dynamically, growing and shrinking as needed. There is no reason for the polling list to ever be "full." That's a concept that should not apply. The polling list should be large enough to accomodate every single device that needs to be polled, without having to bump a device off the list, ever. And that's especially true given that the maximum number of devices that would ever be polled is relatively small.
 
-Finally, (my software engineer friends are going to love this one) Luup puts *all devices* on the polling list whether they are configured for polling or not. It is only later, when the polling process pops the device from the polling list that it determines there is nothing for it to do. So not only do polling-disabled devices thus keep generating trivial busy work ("on the list, nothing to do, off the list" lather rinse repeat ad infinitum), but because of the fixed list size, *non-polled devices are bumping polled devices off the list*, exacerbating all of the previously-mentioned brokenness. Disabling polling on a single device doesn't help you avoid the list overflow problem, and thus doesn't improve the consistency of polling in the system when the number of nodes exceeds the list size.
+Second, when the list gets "full," there appears to be no priority given to what gets thrown off the list other than how many are on the list. This is troublesome, because it makes no provision for how "tardy" the poll for the device is, so a node that has missed a poll interval could, in a large enough network, keep getting thrown off the list and *never* get polled. Eventually it really becomes blind luck that the device doesn't get thrown off if it does eventually get polled.
 
-Again, we don't have access to Vera's code to verify behavior, but this is what I can observe and surmise from the messages in the log files. And in all, it means that once the number of nodes grows to a certain size, Luup's polling becomes irretreivable broken and goes random, and is thus little more than a driver of bogus traffic in the mesh that isn't serving the needs of the mesh as a whole.
+> SIDEBAR: On my Vera system, with 97 ZWave devices, had a large number of devices that were polled perhaps only once or twice a day, randomly, despite being configured to poll every 10 or 30 minutes (typical for my system).
 
-## How Does PollRepair Work
+Finally, (my software engineer friends are going to love this one) Luup puts *all devices* on the polling list whether they are configured for polling or not. It is only later, when the polling process pops the device from the list that it determines that there is no work to be done for that device. So not only does this waste cycles (carrying devices that don't need to be carried), but because of the fixed list size, *these non-polled devices are bumping devices that need to be polled off the list* &mdash; they take up a slot in the list they don't need &mdash; exacerbating all of the previously-mentioned brokenness. Disabling polling on a device doesn't help you avoid the list overflow problem, and thus doesn't improve the consistency of polling in the system when the number of nodes exceeds the list size.
+
+Again, we don't have access to Vera's code to verify behavior, but this is what I can observe and surmise from the messages in the log files. And in all, it means that once the number of nodes added to the system exceeds a certain low number, Luup's polling becomes irretreivably broken and goes random. It is thus little more than a driver of bogus traffic in the mesh and busy work that isn't serving the needs of the mesh as a whole.
+
+## How PollRepair Works
 
 PollRepair works by finding the pollable devices in the system and telling Vera not to poll them, while it continues in the background doing the polling itself. PollRepair does not use a fixed list; the poll list in PollRepair is dynamic and grows and shrinks to suit the number of eliglble devices. Devices are managed on the list so that the nodes with the most-tardy polls bubble to the top &mdash; the longer since a poll interval was missed, the more urgent that node becomes in the queue. This is completely dynamic and constantly changing. It is also resilient across Luup reloads, of course, because that's how I roll. Nodes stay on schedule to the greatest degree possible, and when it's not possible, PollRepair works to get them back on schedule ASAP.
 
@@ -30,16 +35,20 @@ Battery-operated devices are skipped *mdash; some of these are polled on Vera, a
 
 ## Installing
 
-To install PollRepair:
+**Before proceeding, this is a good time to make a full backup of your system, including the ZWave dongle.**
 
-1. Go its Github repository;
-2. Click the green "Download or clone" button and choose "Download ZIP";
-3. Save the ZIP file somewhere;
-4. Unzip the archive;
-5. Open the Luup upload in UI7 at *Apps > Develop apps > Luup files*;
-6. Drag and drop the unzipped files (no folders; and skip the `.md` files) to the "Upload" button as a group.
-7. Wait for Luup to reload.
-8. [Hard refresh your browser](https://www.getfilecloud.com/blog/2015/03/tech-tip-how-to-do-hard-refresh-in-browsers/).
+There are two ways to get PollRepair, but both of them source from its [Github repository](https://github.com/toggledbits/Vera-PollRepair):
+
+* The latest released version is always on [the *master* branch](https://github.com/toggledbits/Vera-PollRepair/tree/master). Click the green "Code" button and choose "Download ZIP". Save the ZIP file somewhere and continue below.
+* All released packages can be found in the [repository's releases list](https://github.com/toggledbits/Vera-PollRepair/releases). You can download any release package by clicking on its "Source code (zip)" link. Save the ZIP file somewhere and continue below.
+
+To install:
+
+1. Unzip the archive;
+2. Open the Luup uploader in UI7 at *Apps > Develop apps > Luup files*;
+3. Drag and drop the unzipped files (no folders; and skip the `.md` files) to the "Upload" button as a group;
+4. Wait for Luup to reload;
+5. [Hard refresh your browser](https://www.getfilecloud.com/blog/2015/03/tech-tip-how-to-do-hard-refresh-in-browsers/).
 
 ## Setting Up
 
