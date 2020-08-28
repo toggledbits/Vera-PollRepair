@@ -2,8 +2,6 @@
 
 *PollRepair* is a plugin replacement for Vera Luup's broken polling. 
 
-It does not run on openLuup directly. But, if you are an openLuup (or Hass or other) user with a bridged Vera system, PollRepair can be run on the Vera itself.
-
 ## Why PollRepair?
 
 Vera's polling is verifiably broken. At a certain point, it collapses under its own weight and bugs, sometimes taking the mesh with it. The first most-observable evidence of its flaws are that devices are not polled on time in large networks. Other observations include suspected bugs in concurrency or mesh interaction that cause deadlocks and Luup reloads when polling and other mesh activities are done at the same time.
@@ -23,17 +21,25 @@ Second, when the list gets "full," there appears to be no priority given to what
 
 > SIDEBAR: My own house Vera system, with 100-ish ZWave nodes, had a large number of devices that were polled perhaps only once or twice a day, randomly, despite being configured to poll every 10 or 30 minutes.
 
-Finally, (my software engineer friends are going to love this one) Luup puts *all nodes* on the polling list, whether they are configured for polling or not. It is only later, when the polling process pops the device from the list that it determines that there is no work to be done for that device. So not only does this waste cycles (fussing with devices that don't need to be fussed), but because of the fixed list size, *these non-polled devices are bumping devices that need to be polled off the list* &mdash; they take up a slot in the list that they don't need &mdash; exacerbating all of the previously-mentioned brokenness. Disabling polling on a device doesn't help you avoid the list overflow problem, and thus doesn't improve the consistency of polling in the system when the number of nodes exceeds the list size.
+Third, (my software engineer friends are going to love this one) it appears that Luup puts *all nodes* on the polling list, whether they are configured for polling or not. It is only later, when the polling process pops the device from the list that it determines that there is no work to be done for that device. So not only does this waste cycles (fussing with devices that don't need to be fussed), but because of the fixed list size, *these non-polled devices are bumping devices that need to be polled off the list* &mdash; they take up a slot in the list that they don't need &mdash; exacerbating all of the previously-mentioned brokenness. Disabling polling on a device doesn't help you avoid the list overflow problem, and thus doesn't improve the consistency of polling in the system when the number of nodes exceeds the list size.
 
-> SIDEBAR: This is another really poor engineering choice. Clearly, the determination of whether a device needs to be polled or not should be made *before* putting the device on the list, and then not putting it on at all if polling isn't needed. At least then, you could configure less critical devices in the system to not poll, to get the list of devices that need polling down to or below the list size limit and get around the problems that creates. But given this "feature," you can't do that, so the entirety of the polling function is reduced to unpredictable noise at best.
+> SIDEBAR: This is another really poor engineering choice. Clearly, the determination of whether a device needs to be polled or not should be made *before* putting the device on the list. Don't put it on the list in the first place if it doesn't need to be polled. At least then, as a workaround for the low fixed list size, you could configure less critical devices in the system to not poll, so they would never be on the list, and the limited capacity of the list would then be reserved for only the devices that need polling. Unfortunately, this is not the case, so no workaround is possible.
 
 Again, we don't have access to Vera's code to verify these bugs in hard statements, but this is what I can observe and surmise from the messages in the log files. And in all, it means that once the number of nodes added to the system exceeds a certain low number (seems like 50), Luup's polling goes random, and becomes little more than a driver of bogus traffic in the mesh and busy work that isn't serving the needs of the mesh as a whole.
+
+Finally, we know that there are various problems with concurrency and message handling in the firmware, some of which appear to be exacerbated by the polling process, causing deadlocks and missed devices messages. I don't expect PollRepair to be able to affect much here, as these are internal issues of the Luup and ZWave stack implementation, but it's possible that just changing the approach by using PollRepair takes enough of a different path that some of these landmines might be missed.
 
 ## How PollRepair Works
 
 PollRepair works by finding the pollable devices in the system and telling Vera not to poll them, while it continues in the background doing the polling itself. PollRepair does not use a fixed list; the poll list in PollRepair is dynamic and grows and shrinks to suit the number of eliglble devices. Devices are managed on the list so that the nodes with the most-tardy polls bubble to the front of the line &mdash; the longer since a poll interval was missed, the more urgent that node becomes to be handled. This is completely dynamic and constantly adaptive. It is also resilient across Luup reloads (of course, because that's how I roll). Nodes stay on schedule to the greatest degree possible, and when it's not possible, PollRepair works to get them back on schedule ASAP.
 
 Battery-operated devices are skipped &mdash; some of these are polled on Vera, and require a special approach to polling from the firmware that cannot easily be circumvented or duplicated, so we allow Vera to continue to poll these devices itself. As a an aside, it is not clear that battery-operated devices really need to be polled at all (the device's wake-ups usually serve the purpose).
+
+## System Requirements
+
+PollRepair is intended to run on Vera Plus, Edge and Secure systems running firmware 7.0.31 or higher. It has not been tested on (and is not targeted for) Vera3 or Lite systems.
+
+It does not run on openLuup directly. But, if you are an openLuup (or Hass or other) user with a bridged Vera system, PollRepair can be run on the Vera itself.
 
 ## Installing
 
@@ -77,7 +83,7 @@ PollRepair logs its activity in level 4 of the LuaUPnP log file. If you normally
 
 * PollRepair does *not* honor Vera's polling process settings in the *Settings > Z-Wave Settings* tab of the UI (UI7). Changing these settings does not affect PollRepair's behavior in any way.
 * The minimum polling interval is 60 seconds. PollRepair will not poll a device more frequently than this.
-* While PollRepair is operating, you may still see Vera/Luup's messages about the polling list being full. This is normal and can be safely ignored. You'll see other messages to let you know that PollRepair is working, and of course, you'll be able to observe its effect on device states. Here's a snippet of what your logs will typically show:
+* While PollRepair is operating, **you may still see Vera/Luup's messages about the polling list being full** ("poll list full, deleting old one"). This is normal (it's the side-effect of the third bug mentioned in "Why PollRepair?" above) and can be safely ignored. You'll see other messages to let you know that PollRepair is working, and of course, you'll be able to observe its effect on device states. Here's a snippet of what your logs will typically show:
 
 ```
 04	08/27/20 15:48:00.110	luup_log:483: PollRepair: Polling "Foyer Receptacle" (device 370, ZWave node "160") delayed 3s <0x73d70520>
@@ -105,5 +111,3 @@ PollRepair logs its activity in level 4 of the LuaUPnP log file. If you normally
 04	08/27/20 15:48:20.234	<Job ID="34910" Name="pollnode_sms2 #167 1 cmds" Device="377" Created="2020-08-27 15:48:20" Started="2020-08-27 15:48:20" Completed="2020-08-27 15:48:20" Duration="0.124185000" Runtime="0.123688000" Status="Successful" LastNote="SUCCESS! Successfully polled node" Node="167" NodeType="ZWaveNonDimmableLight" NodeDescription="Family Rm Pathway"/> <0x77370520>
 02	08/27/20 15:48:20.235	Device_Basic::AddPoll 377 poll list full, deleting old one <0x77370520>
 ```
-
-
