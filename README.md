@@ -58,16 +58,15 @@ To install:
 2. Open the Luup uploader in UI7 at *Apps > Develop apps > Luup files*;
 3. Select, drag and drop the unzipped files (no folders; and skip the `.md` files) to the "Upload" button as a group;
 4. Wait for Luup to reload;
-5. [Hard refresh your browser](https://www.getfilecloud.com/blog/2015/03/tech-tip-how-to-do-hard-refresh-in-browsers/);
-6. Go to *Apps > Develop apps > Create Device* and enter the following:
+5. Go to *Apps > Develop apps > Create Device* and enter the following:
    ```
    Description: PollRepair
    UPnP Device Filename: D_PollRepair.xml
    UPnP Implementation Filename: I_PollRepair.xml
    ```
-7. Hit the "Create device" button.
-8. Reload Luup.
-9. [Hard refresh your browser again](https://www.getfilecloud.com/blog/2015/03/tech-tip-how-to-do-hard-refresh-in-browsers/);
+6. Hit the "Create device" button;
+7. Reload Luup (e.g. you can run `luup.reload()` in *Apps > Develop apps > Test Luup code*);
+8. [Hard refresh your browser](https://www.getfilecloud.com/blog/2015/03/tech-tip-how-to-do-hard-refresh-in-browsers/);
 
 ## Setting Up
 
