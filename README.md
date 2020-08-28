@@ -1,10 +1,10 @@
 # PollRepair - A Plugin to Replace Vera's Built-in Polling
 
-*PollRepair* is a plugin replacement for Vera Luup's broken polling. 
+*PollRepair* is a plugin replacement for Vera Luup's broken device polling.
 
 ## Why PollRepair?
 
-Vera's polling is verifiably broken. At a certain point, it collapses under its own weight and bugs, sometimes taking the mesh with it. The first most-observable evidence of its flaws are that devices are not polled on time in large networks. Other observations include suspected bugs in concurrency or mesh interaction that cause deadlocks and Luup reloads when polling and other mesh activities are done at the same time.
+Vera's device polling is verifiably broken, and has been for a long time. At a certain point, it collapses under its own weight and bugs, sometimes taking the mesh with it. The first most-observable evidence of its flaws are that devices are not polled on time in large networks. Other observations include suspected bugs in concurrency or mesh interaction that cause deadlocks and Luup reloads when polling and other mesh activities are done at the same time.
 
 While we cannot examine the code to determine exact reasons why these might be, there is evidence in the log files of a few things. 
 First, at around 50 ZWave nodes, messages declaring the poll list to be full start rolling in:
@@ -21,9 +21,9 @@ Second, when the list gets "full," there appears to be no priority given to what
 
 > SIDEBAR: My own house Vera system, with 100-ish ZWave nodes, had a large number of devices that were polled perhaps only once or twice a day, randomly, despite being configured to poll every 10 or 30 minutes.
 
-Third, (my software engineer friends are going to love this one) it appears that Luup puts *all nodes* on the polling list, whether they are configured for polling or not. It is only later, when the polling process pops the device from the list that it determines that there is no work to be done for that device. So not only does this waste cycles (fussing with devices that don't need to be fussed), but because of the fixed list size, *these non-polled devices are bumping devices that need to be polled off the list* &mdash; they take up a slot in the list that they don't need &mdash; exacerbating all of the previously-mentioned brokenness. Disabling polling on a device doesn't help you avoid the list overflow problem, and thus doesn't improve the consistency of polling in the system when the number of nodes exceeds the list size.
+Third, (my software engineer friends are going to love this one) it appears that Luup puts *all nodes* on the polling list, whether they are configured for polling or not. It is only later, when the polling process pops the device from the list that it determines that there is no work to be done for that device. Not only does this waste cycles (fussing with devices that don't need to be fussed with), but because of the fixed list size, *these non-polled devices are bumping devices that need to be polled off the list* &mdash; they take up a slot in the list that they don't need &mdash; exacerbating all of the previously-mentioned brokenness. Disabling polling on a device doesn't help you avoid the list overflow problem, and thus doesn't improve the consistency of polling in the system when the number of nodes exceeds the list size.
 
-> SIDEBAR: This is another really poor engineering choice. Clearly, the determination of whether a device needs to be polled or not should be made *before* putting the device on the list. Don't put it on the list in the first place if it doesn't need to be polled. At least then, as a workaround for the low fixed list size, you could configure less critical devices in the system to not poll, so they would never be on the list, and the limited capacity of the list would then be reserved for only the devices that need polling. Unfortunately, this is not the case, so no workaround is possible.
+> SIDEBAR: This is another really poor engineering choice. Clearly, the determination of whether a device needs to be polled or not should be made *before* putting the device on the list. Don't put it on the list in the first place if it doesn't need to be polled. At least then, as a workaround for the low fixed list size, you could configure less-critical devices in the system to not poll, so they would never be on the list, and the limited capacity of the list would then be reserved for only the devices that need polling. Unfortunately, this is not the case, so no workaround is possible.
 
 Again, we don't have access to Vera's code to verify these bugs in hard statements, but this is what I can observe and surmise from the messages in the log files. And in all, it means that once the number of nodes added to the system exceeds a certain low number (seems like 50), Luup's polling goes random, and becomes little more than a driver of bogus traffic in the mesh and busy work that isn't serving the needs of the mesh as a whole.
 
@@ -45,6 +45,8 @@ It does not run on openLuup directly. But, if you are an openLuup (or Hass or ot
 
 **Before proceeding, this is a good time to make a full backup of your system, including the ZWave dongle.**
 
+**CAVEAT USER: PollRepair is experimental! Use at your own risk!** I have long seen the issues in Luup's polling, and finally became determined to see if there was something I could do about it from the rather "external" environment of a plugin, the only access we're given. It relies on a lot of detective work (guess work), and a lot of assumptions. I have run it on my own house system for months, and my system is stable and goes long stretches without reloads. That said, your experience may be different. Everyone has different devices, different configurations, and I've even found that the order in which devices are added to the system (which affects the order of initialization) can have interesting (there's a word) effects on system stability. It is unlikely PollRepair will harm your system, I think, but given what we know of Vera and some of its design choices, it is always possible for some previously-unheard-of side-effect to rear its ugly head in an unfortunate way. Backups are your friend.
+
 There are two ways to get PollRepair, but both of them source from its [Github repository](https://github.com/toggledbits/Vera-PollRepair):
 
 * The latest released version is always on [the *master* branch](https://github.com/toggledbits/Vera-PollRepair/tree/master). Click the green "Code" button and choose "Download ZIP". Save the ZIP file somewhere and continue below.
@@ -54,7 +56,7 @@ To install:
 
 1. Unzip the archive;
 2. Open the Luup uploader in UI7 at *Apps > Develop apps > Luup files*;
-3. Drag and drop the unzipped files (no folders; and skip the `.md` files) to the "Upload" button as a group;
+3. Select, drag and drop the unzipped files (no folders; and skip the `.md` files) to the "Upload" button as a group;
 4. Wait for Luup to reload;
 5. [Hard refresh your browser](https://www.getfilecloud.com/blog/2015/03/tech-tip-how-to-do-hard-refresh-in-browsers/).
 
@@ -74,15 +76,14 @@ If you disable PollRepair using its dashboard button, the plugin will restore Ve
 
 ## Special Configuration
 
-If you have a device that you do not want PollRepair to manage, you can mark it by creating a state variable called `tb_verapollonly` in service `urn:micasaverde-com:serviceId:ZWaveDevice1` and setting it to 1 (or non-zero integer). This is easily done in the device's control panel, on the *Advanced > New Service" tab.
+If you have a device that you do not want PollRepair to manage, you can mark it by creating a state variable called `tb_verapollonly` in service `urn:micasaverde-com:serviceId:ZWaveDevice1` and setting it to 1 (or non-zero integer). This is easily done in the device's control panel, on the *Advanced > New Service* tab.
 Setting it to 0 will again allow PollRepair to manage the device. Whenever you create or change this value, if PollRepair is enabled, you should disable it and then re-enable it. Luup reload is not necessary.
-
-PollRepair logs its activity in level 4 of the LuaUPnP log file. If you normally have this disabled, you will not see PollRepair's messages.
 
 ## Other Things
 
 * PollRepair does *not* honor Vera's polling process settings in the *Settings > Z-Wave Settings* tab of the UI (UI7). Changing these settings does not affect PollRepair's behavior in any way.
 * The minimum polling interval is 60 seconds. PollRepair will not poll a device more frequently than this.
+* PollRepair logs its activity in level 4 of the LuaUPnP log file. If you normally have this level (job logging) disabled, you will not see PollRepair's messages.
 * While PollRepair is operating, **you may still see Vera/Luup's messages about the polling list being full** ("poll list full, deleting old one"). This is normal (it's the side-effect of the third bug mentioned in "Why PollRepair?" above) and can be safely ignored. You'll see other messages to let you know that PollRepair is working, and of course, you'll be able to observe its effect on device states. Here's a snippet of what your logs will typically show:
 
 ```
