@@ -1,6 +1,6 @@
 --[[
 	L_PollRepair.lua - Core module for PollRepair
-	Copyright 20162017,2018 Patrick H. Rigney, All Rights Reserved.
+	Copyright 2020 Patrick H. Rigney, All Rights Reserved.
 	This file is part of PollRepair. For license information, see LICENSE at https://github.com/toggledbits/PollRepair
 --]]
 --luacheck: std lua51,module,read globals luup,ignore 542 611 612 614 111/_,no max line length
@@ -11,7 +11,7 @@ local debugMode = false
 
 local _PLUGIN_ID = 99999
 local _PLUGIN_NAME = "PollRepair"
-local _PLUGIN_VERSION = "0.1develop-20241"
+local _PLUGIN_VERSION = "0.1develop-20300"
 local _PLUGIN_URL = "https://www.toggledbits.com/"
 local _CONFIGVERSION = 20241
 
@@ -45,7 +45,7 @@ local function dump(t)
 		elseif type(v) == "string" then
 			val = string.format("%q", v)
 		elseif type(v) == "number" and (math.abs(v-os.time()) <= 86400) then
-			val = tostring(v) .. "(" .. os.date("%x.%X", v) .. ")"
+			val = tostring(v) .. "(" .. os.date("%Y-%m-%d.%X", v) .. ")"
 		else
 			val = tostring(v)
 		end
@@ -74,7 +74,7 @@ local function L(msg, ...) -- luacheck: ignore 212
 			elseif type(val) == "string" then
 				return string.format("%q", val)
 			elseif type(val) == "number" and math.abs(val-os.time()) <= 86400 then
-				return tostring(val) .. "(" .. os.date("%x.%X", val) .. ")"
+				return tostring(val) .. "(" .. os.date("%Y-%m-%d.%X", val) .. ")"
 			end
 			return tostring(val)
 		end
@@ -818,13 +818,16 @@ end
 
 function job_callback( jobdata, b, c )
 	D("job_callback(%1,%2,%3)", jobdata, b, c)
-	if jobdata.type ~= "ZWJob_PollNode" then
-		-- Something other than polling is going on, defer new poll jobs
-		-- NB can't really tell what type of job, so must assume all jobs are mesh-related. Harmless?
-		local m = getVarNumeric( "MeshBusyHoldOff", 20, pluginDevice, MYSID )
-		if m > 0 then
-			pollHoldOff = os.time() + m
-			D("job_callback() holding off new poll jobs until %1", pollHoldOff)
+	if ( luup.devices[jobdata.device_num or 0] or {} ).device_num_parent == 1 then
+		D("job_callback() ZWave job %1 for %2", jobdata.type, jobdata.device_num)
+		if jobdata.type ~= "ZWJob_PollNode" then
+			-- Something other than polling is going on, defer new poll jobs
+			-- NB can't really tell what type of job, so must assume all jobs are mesh-related. Harmless?
+			local m = getVarNumeric( "MeshBusyHoldOff", 20, pluginDevice, MYSID )
+			if m > 0 then
+				pollHoldOff = math.max( pollHoldOff or 0, os.time() + m )
+				D("job_callback() holding off new poll jobs until %1", pollHoldOff)
+			end
 		end
 	end
 end

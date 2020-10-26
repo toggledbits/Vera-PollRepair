@@ -66,7 +66,7 @@ To install:
    ```
 6. Leave the other fields blank and hit the "Create device" button;
 7. Reload Luup your favorite way (e.g. run `luup.reload()` in *Apps > Develop apps > Test Luup code*);
-8. [Hard refresh your browser](https://www.getfilecloud.com/blog/2015/03/tech-tip-how-to-do-hard-refresh-in-browsers/);
+8. [Hard refresh your browser](https://www.getfilecloud.com/blog/2015/03/tech-tip-how-to-do-hard-refresh-in-browsers/).
 
 ## Setting Up
 
