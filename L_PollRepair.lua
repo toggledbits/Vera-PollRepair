@@ -28,6 +28,7 @@ local sysScheduler
 local pluginDevice
 local pollDevices = {}
 local pollHoldOff = false
+local lastPoll = 0
 local watchData = {}
 
 POLL_REPORT_LEVEL = debugMode and 50 or 4
@@ -161,7 +162,7 @@ local function getVar( name, dflt, dev, sid, doinit )
 	assert( sid ~= nil, "SID required for "..tostring(name) )
 	local s = luup.variable_get( sid, name, dev )
 	if s == nil and doinit then
-		luup.variable_set( sid, name, tostring(dflt), dev )
+		luup.variable_set( sid, name, "", dev )
 		return dflt
 	end
 	return (s or "") == "" and dflt or s
@@ -433,18 +434,26 @@ local function poll_device()
 		end
 	end
 	if #pollDevices > 0 then
-		setMessage(string.format("Managing %d devices; %d ready", #pollDevices, tardy))
 		local p = pollDevices[1]
 		D("poll_device() now %2 candidate %1", p, now)
+		local pace = getVarNumeric( "Pace", 3, pluginDevice, MYSID )
 		if p.nextattempt > ( now + 5 ) then
 			-- Scheduled time more than five seconds away, defer
 			local delay = p.nextattempt - now
 			D("poll_device() device not ready for %1s, deferring", delay)
-			setMessage(string.format("Managing %d devices; next in %ds", #pollDevices, delay))
+			setMessage(string.format("Managing %d devices; next at %s", #pollDevices, os.date("%X", p.nextattempt)))
 			D("poller() scheduling run for %1s %2", delay, now+delay)
 			sysScheduler.getTask("poller"):delay(delay)
+		elseif ( lastPoll + pace ) > now then
+			-- Honor pacing
+			setMessage(string.format("Managing %d devices; %d ready", #pollDevices, tardy))
+			local delay = ( lastPoll + pace ) - now
+			D("poll_device() pacing delay %1s", delay)
+			sysScheduler.getTask("poller"):delay(delay)
+			return
 		else
 			D("poll_device() device %1 (#%2) ready to poll", luup.devices[p.device].description, p.device)
+			setMessage(string.format("Managing %d devices; %d ready", #pollDevices, tardy))
 			p.interval = getVarNumeric( "tb_pollsettings", 1800, p.device, ZWDEVSID )
 			if p.interval == 0 then p.interval = 1800 end
 			if p.interval < 60 then p.interval = 60 end
@@ -462,7 +471,7 @@ local function poll_device()
 			p.job = job
 			p.lastattempt = now
 			p.nextattempt = now + p.interval -- just for now
-			sysScheduler.Task:new( "jobcheck"..job, pluginDevice, check_job, { job, p.device } ):delay( 5 )
+			sysScheduler.Task:new( "jobcheck"..job, pluginDevice, check_job, { job, p.device } ):delay( 1 )
 			return -- check_job will reschedule the poller when the poll job completes
 		end
 	else
@@ -489,11 +498,12 @@ check_job = function( task, jobnum, dev, retries )
 				-- setVar( ZWNETSID, "ConsecutivePollFails", 0, p.device )
 				L({level=POLL_REPORT_LEVEL, msg="Successful poll of %1 (#%2), next %3 (interval %4)"},
 					luup.devices[p.device].description, p.device, p.nextattempt, p.interval)
+				lastPoll = os.time()
 				poll_device()
 				D("check_job() closing task %1", tostring(task))
 				task:close()
 				return
-			elseif st < 0 or st == 2 or st == 3 or (retries or 0) >= 5 then
+			elseif st < 0 or st == 2 or st == 3 or (retries or 0) >= 15 then
 				if st == 3 and (note or ""):lower():find("no commands to poll") then
 					-- That means it's not a pollable device
 					E("Not a pollable device #%1. Do something about it", dev)
@@ -507,17 +517,17 @@ check_job = function( task, jobnum, dev, retries )
 				-- ??? if 10 consecutive failed, stop polling it? only if we're watching the device, too
 				L({level=2,msg="FAILED poll of %1 (#%2), %3 consecutive failures, next attempt %4"},
 					luup.devices[p.device].description, p.device, p.failedattempts, p.nextattempt)
+				lastPoll = os.time()
 				poll_device()
 				D("check_job() closing task %1", tostring(task))
 				task:close()
 				return
 			elseif st == 0 then
 				D("check_job() job still waiting to start")
-				task:delay(5)
-				return
+			else
+				D("check_job() status inconclusive, waiting...")
 			end
-			D("check_job() status inconclusive, waiting...")
-			task:delay(5, {}, { jobnum, dev, (retries or 0) + 1 })
+			task:delay(1, {}, { jobnum, dev, (retries or 0) + 1 })
 			return
 		end
 	end
@@ -617,6 +627,7 @@ local function plugin_runOnce( pdev )
 	initVar( "Enabled", "0", pdev, MYSID )
 	initVar( "DebugMode", "0", pdev, MYSID )
 	initVar( "MeshBusyHoldOff", "", pdev, MYSID )
+	initVar( "Pace", "", pdev, MYSID )
 
 	-- Consider per-version changes.
 
